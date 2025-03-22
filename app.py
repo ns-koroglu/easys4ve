@@ -1,4 +1,5 @@
 import os
+import asyncio
 from flask import Flask, request
 import telegram
 from telegram import Update
@@ -7,6 +8,8 @@ import yt_dlp
 
 app = Flask(__name__)
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
+
+# Application nesnesini oluştur
 application = Application.builder().token(TOKEN).build()
 
 # Videoyu indirme fonksiyonu
@@ -38,10 +41,16 @@ async def handle_message(update: Update, context):
         video_file = await download_video(message)
 
         if os.path.exists(video_file):
-            # Telegram'a video gönderme
-            with open(video_file, 'rb') as video:
-                await context.bot.send_video(chat_id=chat_id, video=video, supports_streaming=True)
-            os.remove(video_file)  # Dosyayı temizle
+            try:
+                # Telegram'a video gönderme
+                with open(video_file, 'rb') as video:
+                    await context.bot.send_video(chat_id=chat_id, video=video, supports_streaming=True)
+            except Exception as e:
+                await update.message.reply_text(f"Video gönderilirken hata oluştu: {str(e)}")
+            finally:
+                # Dosyayı her durumda temizle
+                if os.path.exists(video_file):
+                    os.remove(video_file)
         else:
             await update.message.reply_text(video_file)  # Hata mesajı
     else:
@@ -54,11 +63,26 @@ application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_m
 # Webhook endpoint'i
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    update = Update.de_json(request.get_json(force=True), application.bot)
-    application.process_update(update)
-    return 'OK'
+    try:
+        # Gelen JSON verisini al ve Update nesnesine çevir
+        update = Update.de_json(request.get_json(force=True), application.bot)
+        
+        # Asenkron işlemi çalıştır
+        # Flask asenkron bir framework olmadığı için asyncio.run kullanıyoruz
+        asyncio.run(application.process_update(update))
+        
+        return 'OK', 200
+    except Exception as e:
+        print(f"Webhook hatası: {str(e)}")
+        return 'Error', 500
 
 # Flask sunucusunu başlat
 if __name__ == '__main__':
+    # Uygulamayı başlatmadan önce botu yapılandır
     port = int(os.environ.get("PORT", 5000))
+    
+    # Webhook'u ayarla (Render veya başka bir platformda çalışıyorsanız)
+    # Not: Webhook URL'inizi platformunuza göre ayarlamalısınız
+    # Örneğin: application.bot.set_webhook(url=f"https://your-app.onrender.com/webhook")
+    
     app.run(host='0.0.0.0', port=port)
