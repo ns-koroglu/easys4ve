@@ -12,7 +12,7 @@ application = Application.builder().token(TOKEN).build()
 # Videoyu indirme fonksiyonu
 async def download_video(url):
     ydl_opts = {
-        'format': 'best',  # Birleştirme gerektirmeyen en iyi formatı seç
+        'format': 'bestvideo[filesize<50M]+bestaudio/best[filesize<50M]',
         'outtmpl': 'video.%(ext)s',  # Çıktı dosya adı
         'quiet': True,  # Gereksiz çıktıları gizle
     }
